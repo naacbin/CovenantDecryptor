@@ -1,0 +1,9 @@
+click==8.1.7
+markdown-it-py==3.0.0
+mdurl==0.1.2
+minidump==0.0.21
+pycryptodome==3.19.0
+Pygments==2.16.1
+rich==13.6.0
+typer==0.9.0
+typing-extensions==4.8.0
