@@ -46,6 +46,8 @@ $ python3 extract_privatekey.py -i memory.dmp -m 1957420128605912371522163487708
 [+] Saved private key /home/user/privkey1.pem
 ```
 
+> The script will try to get p and q as little and big endian.
+
 Recover the `SessionKey` from the stage 0 response of Covenant C2, which is employed to encrypt network traffic :
 
 ```text
