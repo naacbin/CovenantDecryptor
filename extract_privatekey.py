@@ -1,9 +1,8 @@
-from Crypto.Util.number import bytes_to_long, long_to_bytes
 from Crypto.PublicKey import RSA
 from minidump.minidumpfile import MinidumpFile
 from pathlib import Path
 from typing_extensions import Annotated
-from typing import Optional, List
+from typing import Literal, Optional, List
 from rich import print
 import typer
 import logging
@@ -55,7 +54,9 @@ def create_private_key(private_key_file: Path, p: int, q: int, e: int = 65537):
     print(f"[green][+] Saved private key {private_key_file}[/green]")
 
 
-def extract_prime_numbers(data: bytes, modulus: int) -> set:
+def extract_prime_numbers(
+    data: bytes, modulus: int, endianess: Literal["little", "big"] = "big"
+) -> set:
     """Find prime numbers (p and q) inside binary data using modulus (n).
     The prime factors immediately follow the modulus in Microsoft RSA private key blob.
     https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-wcce/5cf2e6b9-3195-4f85-bc18-05b50e6d4e11
@@ -68,8 +69,8 @@ def extract_prime_numbers(data: bytes, modulus: int) -> set:
         set: A set containing the prime numbers (p and q) found in the data.
     """
     cursor = 0
-    bmodulus = long_to_bytes(modulus)
-    size_modulus = len(bmodulus)
+    size_modulus = (modulus.bit_length() + 7) // 8
+    bmodulus = modulus.to_bytes(size_modulus, endianess)
     size_of_prime = round(size_modulus / 2)
     p_q_pairs = set()
     while cursor < len(data):
@@ -80,22 +81,29 @@ def extract_prime_numbers(data: bytes, modulus: int) -> set:
             break
         # Move the starting position to after the found occurrence
         cursor = index + size_modulus
-        cursor_with_prime = cursor + size_of_prime
 
-        prime_p = bytes_to_long(data[cursor:cursor_with_prime])
-        prime_q = bytes_to_long(
-            data[cursor_with_prime : cursor_with_prime + size_of_prime]
-        )
+        if endianess == "little":
+            p_cursor = cursor + size_modulus + 128
+            q_cursor = p_cursor + size_of_prime + size_of_prime + size_modulus + 128
+        else:
+            p_cursor = cursor
+            q_cursor = p_cursor + size_of_prime
+
+        prime_p = int.from_bytes(data[p_cursor : p_cursor + size_of_prime], endianess)
+        prime_q = int.from_bytes(data[q_cursor : q_cursor + size_of_prime], endianess)
+
         if prime_p * prime_q == modulus:
             p_q_pairs.add((prime_p, prime_q))
-            logging.debug(f"[*] Found P : {prime_p}")
-            logging.debug(f"[*] Found Q : {prime_q}")
         else:
             print(
                 "[yellow][-] A pair of P and Q were located, but they do not match the modulus.[/yellow]"
             )
-            logging.debug(f"[*] Found P : {prime_p}")
-            logging.debug(f"[*] Found Q : {prime_q}")
+        logging.debug(
+            f"[*] Found P : {prime_p} as {endianess}-endian at {hex(p_cursor)}"
+        )
+        logging.debug(
+            f"[*] Found Q : {prime_q} as {endianess}-endian at {hex(q_cursor)}"
+        )
     return p_q_pairs
 
 
@@ -124,7 +132,8 @@ def read_minidump(minidump: MinidumpFile, modulus: int) -> Optional[List]:
         reader.move(ms.start_virtual_address)
         data = reader.read(ms.size)
         if data:
-            p_q_pairs.update(extract_prime_numbers(data, modulus))
+            p_q_pairs.update(extract_prime_numbers(data, modulus, "big"))
+            p_q_pairs.update(extract_prime_numbers(data, modulus, "little"))
     return list(p_q_pairs)
 
 
