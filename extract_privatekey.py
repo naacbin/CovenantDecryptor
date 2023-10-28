@@ -130,7 +130,16 @@ def read_minidump(minidump: MinidumpFile, modulus: int) -> Optional[List]:
     p_q_pairs = set()
     for ms in all_ms:
         reader.move(ms.start_virtual_address)
-        data = reader.read(ms.size)
+        try:
+            data = reader.read(ms.size)
+        except Exception as e:
+            if e.args[0] == "Would read over segment boundaries!":
+                logging.debug(
+                    f"[*] Error : {e.args[0]} for {hex(ms.start_virtual_address)}"
+                )
+                continue
+            else:
+                raise e
         if data:
             p_q_pairs.update(extract_prime_numbers(data, modulus, "big"))
             p_q_pairs.update(extract_prime_numbers(data, modulus, "little"))
