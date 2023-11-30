@@ -2,6 +2,8 @@
 
 CovenantDecryptor is designed to decrypt the communication data of Covenant traffic.
 
+> The extraction of the private key from memory is applicable to other C2, such as Empire, given its use of the `RSACryptoServiceProvider` to create the key.
+
 ## How Covenant communication works ?
 
 The Covenant communication initialization consists of 3 stages :
